@@ -221,19 +221,21 @@ class WhisperGui(tk.Tk):
 
         checks = ttk.Frame(frame)
         checks.grid(row=4, column=0, columnspan=4, sticky="ew", pady=(6, 2))
+        checks.columnconfigure(0, weight=1)
+        checks.columnconfigure(1, weight=1)
         ttk.Checkbutton(checks, text="Condition on previous text", variable=self.condition_on_previous_text).grid(
             row=0, column=0, sticky="w", padx=(0, 16)
         )
-        ttk.Checkbutton(checks, text="Carry initial prompt", variable=self.carry_initial_prompt).grid(
+        ttk.Checkbutton(checks, text="Word timestamps", variable=self.word_timestamps).grid(
             row=0, column=1, sticky="w", padx=(0, 16)
         )
-        ttk.Checkbutton(checks, text="Word timestamps", variable=self.word_timestamps).grid(
-            row=0, column=2, sticky="w", padx=(0, 16)
+        ttk.Checkbutton(checks, text="Carry initial prompt", variable=self.carry_initial_prompt).grid(
+            row=1, column=0, sticky="w", padx=(0, 16)
         )
         self.highlight_words_check = ttk.Checkbutton(checks, text="Highlight words", variable=self.highlight_words)
-        self.highlight_words_check.grid(row=1, column=0, sticky="w", padx=(0, 16))
-        ttk.Checkbutton(checks, text="fp16", variable=self.fp16).grid(row=1, column=1, sticky="w", padx=(0, 16))
-        ttk.Checkbutton(checks, text="Verbose", variable=self.verbose).grid(row=1, column=2, sticky="w")
+        self.highlight_words_check.grid(row=1, column=1, sticky="w", padx=(0, 16))
+        ttk.Checkbutton(checks, text="fp16", variable=self.fp16).grid(row=2, column=0, sticky="w", padx=(0, 16))
+        ttk.Checkbutton(checks, text="Verbose", variable=self.verbose).grid(row=2, column=1, sticky="w")
 
         return frame
 
