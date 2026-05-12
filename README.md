@@ -4,4 +4,4 @@
 - [English](README.en.md)
 
 
-<img width="1122" height="892" alt="whisper-gui" src="https://github.com/user-attachments/assets/8bfaa3f0-360b-41cd-acca-8e92d2a4ba30" />
+<img width="1122" height="892" alt="image" src="https://github.com/user-attachments/assets/06ce3928-1547-47fe-a437-05599475e526" />
