@@ -28,7 +28,7 @@ scoop install ffmpeg
 Whisper 패키지를 설치한다.
 
 ```powershell
-pip install openai-whisper
+pip install openai-whisper faster-whisper
 ```
 
 또는 `requirements.txt`로 설치한다.
@@ -46,6 +46,7 @@ python app.py
 ## 테스트 항목
 
 - 로컬 Whisper로 음성 파일 텍스트 변환
+- `openai-whisper`, `faster-whisper` 엔진 선택
 - `transcribe`, `translate` 작업 선택
 - 로컬 모델 크기 선택
 - 출력 형식 선택
@@ -56,8 +57,11 @@ python app.py
 - 자막 줄 길이와 단어 수 옵션
 - 자막 구두점 옵션
 - 디코딩 관련 옵션
+- faster-whisper 전용 `Compute type`, `VAD filter`, `Hotwords`, `Batch size` 옵션
 
 `Highlight words`, 자막 줄 옵션, 문장부호 옵션, 무음 건너뛰기 기준은 `Word timestamps`를 켰을 때만 사용할 수 있다.
+
+`Compute type`, `VAD filter`, `Hotwords`, `Batch size`는 `Engine`을 `faster-whisper`로 선택했을 때만 사용할 수 있다.
 
 `Output format`을 `all`로 선택하면 선택한 출력 파일 하나가 아니라 입력 파일 이름을 기준으로 여러 출력 파일이 같은 폴더에 생성된다.
 

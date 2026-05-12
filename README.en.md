@@ -28,7 +28,7 @@ scoop install ffmpeg
 Install the Whisper package.
 
 ```powershell
-pip install openai-whisper
+pip install openai-whisper faster-whisper
 ```
 
 Or install from `requirements.txt`.
@@ -46,6 +46,7 @@ python app.py
 ## Test items
 
 - Local Whisper transcription
+- `openai-whisper` and `faster-whisper` engine selection
 - `transcribe` and `translate` tasks
 - Local model selection
 - Output format selection
@@ -56,8 +57,11 @@ python app.py
 - Subtitle line options
 - Subtitle punctuation options
 - Decoding options
+- faster-whisper `Compute type`, `VAD filter`, `Hotwords`, and `Batch size` options
 
 `Highlight words`, subtitle line options, punctuation options, and the silence threshold are available only when `Word timestamps` is enabled.
+
+`Compute type`, `VAD filter`, `Hotwords`, and `Batch size` are available only when `Engine` is set to `faster-whisper`.
 
 When `Output format` is `all`, the app writes multiple output files in the selected output folder using the input file name.
 

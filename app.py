@@ -57,6 +57,7 @@ class WhisperGui(tk.Tk):
 
         self.input_path = tk.StringVar()
         self.output_path = tk.StringVar()
+        self.engine = tk.StringVar(value="openai-whisper")
         self.task = tk.StringVar(value="transcribe")
         self.model_name = tk.StringVar(value="small")
         self.language = tk.StringVar()
@@ -90,6 +91,10 @@ class WhisperGui(tk.Tk):
         self.compression_ratio_threshold = tk.StringVar()
         self.logprob_threshold = tk.StringVar()
         self.no_speech_threshold = tk.StringVar()
+        self.compute_type = tk.StringVar(value="default")
+        self.vad_filter = tk.BooleanVar(value=False)
+        self.hotwords = tk.StringVar()
+        self.batch_size = tk.StringVar()
 
         self.status_text = tk.StringVar(value="Ready")
         self.progress_text = tk.StringVar(value="0%")
@@ -97,12 +102,16 @@ class WhisperGui(tk.Tk):
         self.worker_thread = None
 
         self.model_values = ["tiny", "base", "small", "medium", "large", "turbo"]
+        self.engine_values = ["openai-whisper", "faster-whisper"]
+        self.compute_type_values = ["default", "float32", "float16", "int8"]
         self.language_values = ["", "Korean", "English", "Japanese", "Chinese", "Spanish", "French", "German"]
         self.output_formats = ["txt", "srt", "vtt", "json", "tsv", "all"]
 
         self._build_ui()
+        self.engine.trace_add("write", self._sync_engine_options)
         self.highlight_words.trace_add("write", self._sync_word_timestamps)
         self.word_timestamps.trace_add("write", self._sync_word_timestamp_options)
+        self._sync_engine_options()
         self._sync_word_timestamp_options()
         self._update_dependency_status()
 
@@ -133,6 +142,7 @@ class WhisperGui(tk.Tk):
         self.timestamp_frame = self._build_timestamp_subtitle_options(options)
         self.timestamp_frame.grid(row=0, column=2, sticky="nsew", padx=(6, 0))
         self._build_runtime_options(options).grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        self._build_faster_options(options).grid(row=2, column=0, columnspan=3, sticky="ew", pady=(8, 0))
 
         actions = ttk.Frame(top)
         actions.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(10, 0))
@@ -183,17 +193,16 @@ class WhisperGui(tk.Tk):
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
 
-        ttk.Label(frame, text="Model").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=3)
-        ttk.Combobox(frame, textvariable=self.model_name, values=self.model_values, width=16, state="readonly").grid(
+        ttk.Label(frame, text="Engine").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=3)
+        ttk.Combobox(frame, textvariable=self.engine, values=self.engine_values, width=16, state="readonly").grid(
             row=0, column=1, sticky="ew", pady=3
         )
-        ttk.Label(frame, text="Task").grid(row=0, column=2, sticky="w", padx=(12, 8), pady=3)
-        ttk.Combobox(frame, textvariable=self.task, values=["transcribe", "translate"], width=16, state="readonly").grid(
+        ttk.Label(frame, text="Model").grid(row=0, column=2, sticky="w", padx=(12, 8), pady=3)
+        ttk.Combobox(frame, textvariable=self.model_name, values=self.model_values, width=16, state="readonly").grid(
             row=0, column=3, sticky="ew", pady=3
         )
-
-        ttk.Label(frame, text="Language").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=3)
-        ttk.Combobox(frame, textvariable=self.language, values=self.language_values).grid(
+        ttk.Label(frame, text="Task").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=3)
+        ttk.Combobox(frame, textvariable=self.task, values=["transcribe", "translate"], width=16, state="readonly").grid(
             row=1, column=1, sticky="ew", pady=3
         )
         ttk.Label(frame, text="Output format").grid(row=1, column=2, sticky="w", padx=(12, 8), pady=3)
@@ -205,22 +214,26 @@ class WhisperGui(tk.Tk):
             state="readonly",
         ).grid(row=1, column=3, sticky="ew", pady=3)
 
-        ttk.Label(frame, text="Device").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=3)
-        ttk.Combobox(frame, textvariable=self.device, values=["auto", "cpu", "cuda"], width=16, state="readonly").grid(
+        ttk.Label(frame, text="Language").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=3)
+        ttk.Combobox(frame, textvariable=self.language, values=self.language_values).grid(
             row=2, column=1, sticky="ew", pady=3
         )
-        ttk.Label(frame, text="Model dir").grid(row=2, column=2, sticky="w", padx=(12, 8), pady=3)
+        ttk.Label(frame, text="Device").grid(row=2, column=2, sticky="w", padx=(12, 8), pady=3)
+        ttk.Combobox(frame, textvariable=self.device, values=["auto", "cpu", "cuda"], width=16, state="readonly").grid(
+            row=2, column=3, sticky="ew", pady=3
+        )
+        ttk.Label(frame, text="Model dir").grid(row=3, column=0, sticky="w", padx=(0, 8), pady=3)
         model_dir_row = ttk.Frame(frame)
-        model_dir_row.grid(row=2, column=3, sticky="ew", pady=3)
+        model_dir_row.grid(row=3, column=1, columnspan=3, sticky="ew", pady=3)
         model_dir_row.columnconfigure(0, weight=1)
         ttk.Entry(model_dir_row, textvariable=self.model_dir).grid(row=0, column=0, sticky="ew")
         ttk.Button(model_dir_row, text="...", width=3, command=self.choose_model_dir).grid(row=0, column=1, padx=(4, 0))
 
-        ttk.Label(frame, text="Initial prompt").grid(row=3, column=0, sticky="w", padx=(0, 8), pady=3)
-        ttk.Entry(frame, textvariable=self.initial_prompt).grid(row=3, column=1, columnspan=3, sticky="ew", pady=3)
+        ttk.Label(frame, text="Initial prompt").grid(row=4, column=0, sticky="w", padx=(0, 8), pady=3)
+        ttk.Entry(frame, textvariable=self.initial_prompt).grid(row=4, column=1, columnspan=3, sticky="ew", pady=3)
 
         checks = ttk.Frame(frame)
-        checks.grid(row=4, column=0, columnspan=4, sticky="ew", pady=(6, 2))
+        checks.grid(row=5, column=0, columnspan=4, sticky="ew", pady=(6, 2))
         checks.columnconfigure(0, weight=1)
         checks.columnconfigure(1, weight=1)
         ttk.Checkbutton(checks, text="Condition on previous text", variable=self.condition_on_previous_text).grid(
@@ -324,6 +337,43 @@ class WhisperGui(tk.Tk):
 
         return frame
 
+    def _build_faster_options(self, parent):
+        frame = ttk.LabelFrame(parent, text="Faster Whisper options", padding=8)
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
+
+        self.faster_widgets = []
+
+        label_widget = ttk.Label(frame, text="Compute type")
+        label_widget.grid(row=0, column=0, sticky="w", padx=(0, 8), pady=3)
+        compute_combo = ttk.Combobox(
+            frame,
+            textvariable=self.compute_type,
+            values=self.compute_type_values,
+            width=16,
+            state="readonly",
+        )
+        compute_combo.grid(row=0, column=1, sticky="ew", padx=(0, 18), pady=3)
+        self.faster_widgets.extend([label_widget, compute_combo])
+
+        vad_check = ttk.Checkbutton(frame, text="VAD filter", variable=self.vad_filter)
+        vad_check.grid(row=0, column=2, sticky="w", padx=(18, 8), pady=3)
+        self.faster_widgets.append(vad_check)
+
+        label_widget = ttk.Label(frame, text="Batch size")
+        label_widget.grid(row=1, column=0, sticky="w", padx=(0, 8), pady=3)
+        entry = ttk.Entry(frame, textvariable=self.batch_size)
+        entry.grid(row=1, column=1, sticky="ew", padx=(0, 18), pady=3)
+        self.faster_widgets.extend([label_widget, entry])
+
+        label_widget = ttk.Label(frame, text="Hotwords")
+        label_widget.grid(row=1, column=2, sticky="w", padx=(18, 8), pady=3)
+        entry = ttk.Entry(frame, textvariable=self.hotwords)
+        entry.grid(row=1, column=3, sticky="ew", pady=3)
+        self.faster_widgets.extend([label_widget, entry])
+
+        return frame
+
     def choose_input(self):
         path = filedialog.askopenfilename(
             title="Choose audio file",
@@ -376,6 +426,7 @@ class WhisperGui(tk.Tk):
             messagebox.showwarning("Output required", "Choose an output file.")
             return
 
+        self._normalize_related_options()
         try:
             options = self._collect_options()
         except ValueError as exc:
@@ -384,10 +435,9 @@ class WhisperGui(tk.Tk):
 
         self._set_busy(True)
         self._set_progress(0, 1)
-        self._normalize_related_options()
         self.status_text.set("Converting...")
         self.append_log(f"Input: {input_path}")
-        self.append_log("Mode: local Python package")
+        self.append_log(f"Engine: {options['engine']}")
 
         self.worker_thread = threading.Thread(
             target=self._run_conversion,
@@ -406,10 +456,14 @@ class WhisperGui(tk.Tk):
             self.after(0, self._set_busy, False)
 
     def _convert_with_whisper(self, input_path, output_path, options):
+        if options["engine"] == "faster-whisper":
+            return self._convert_with_faster_whisper(input_path, output_path, options)
+        return self._convert_with_openai_whisper(input_path, output_path, options)
+
+    def _convert_with_openai_whisper(self, input_path, output_path, options):
         try:
             import torch
             import whisper
-            from whisper.utils import get_writer
         except ImportError as exc:
             raise RuntimeError("Install Whisper first: pip install openai-whisper") from exc
 
@@ -428,7 +482,79 @@ class WhisperGui(tk.Tk):
         with whisper_progress(self._on_whisper_progress):
             result = model.transcribe(input_path, **options["transcribe_options"])
 
+        return self._write_result(result, input_path, output_path, options)
+
+    def _convert_with_faster_whisper(self, input_path, output_path, options):
+        try:
+            from faster_whisper import BatchedInferencePipeline, WhisperModel
+        except ImportError as exc:
+            raise RuntimeError("Install faster-whisper first: pip install faster-whisper") from exc
+
+        model_options = options["faster_model_options"]
+        transcribe_options = options["faster_transcribe_options"]
+        batch_size = options["batch_size"]
+
+        self.after(0, self.append_log, f"Loading faster-whisper model: {options['model_name']}")
+        model = WhisperModel(options["model_name"], **model_options)
+        transcriber = BatchedInferencePipeline(model=model) if batch_size else model
+
+        if batch_size:
+            transcribe_options["batch_size"] = batch_size
+
+        self.after(0, self.append_log, "Transcribing with faster-whisper...")
+        segments, info = transcriber.transcribe(input_path, **transcribe_options)
+        duration = getattr(info, "duration", None)
+        segment_dicts = []
+        text_parts = []
+
+        for segment in segments:
+            segment_dict = {
+                "id": len(segment_dicts),
+                "seek": 0,
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text,
+                "tokens": [],
+                "temperature": 0,
+                "avg_logprob": 0,
+                "compression_ratio": 0,
+                "no_speech_prob": 0,
+            }
+            words = getattr(segment, "words", None)
+            if words:
+                segment_dict["words"] = [
+                    {
+                        "word": word.word,
+                        "start": word.start,
+                        "end": word.end,
+                        "probability": word.probability,
+                    }
+                    for word in words
+                ]
+            segment_dicts.append(segment_dict)
+            text_parts.append(segment.text)
+            if duration:
+                self._on_whisper_progress(segment.end, duration)
+
+        if duration:
+            self._on_whisper_progress(duration, duration)
+        else:
+            self._on_whisper_progress(1, 1)
+
+        result = {
+            "text": "".join(text_parts).strip(),
+            "segments": segment_dicts,
+            "language": getattr(info, "language", None),
+        }
+        return self._write_result(result, input_path, output_path, options)
+
+    def _write_result(self, result, input_path, output_path, options):
+        from whisper.utils import get_writer
+
         output_format = options["output_format"]
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+
         writer = get_writer(output_format, str(output.parent))
         writer(result, input_path, options["writer_options"])
 
@@ -459,15 +585,23 @@ class WhisperGui(tk.Tk):
         self.progress_text.set(f"{percent:.0f}%")
 
     def _collect_options(self):
-        return {
+        engine = self.engine.get()
+        options = {
+            "engine": engine,
             "model_name": self.model_name.get(),
             "device": self.device.get(),
             "model_dir": self.model_dir.get().strip() or None,
             "output_format": self.output_format.get(),
             "threads": self._optional_int_value(self.threads.get(), "Threads"),
-            "transcribe_options": self._transcribe_options(),
             "writer_options": self._writer_options(),
         }
+        if engine == "faster-whisper":
+            options["faster_model_options"] = self._faster_model_options()
+            options["faster_transcribe_options"] = self._faster_transcribe_options()
+            options["batch_size"] = self._positive_optional_int_value(self.batch_size.get(), "Batch size")
+        else:
+            options["transcribe_options"] = self._transcribe_options()
+        return options
 
     def _transcribe_options(self):
         options = {
@@ -504,6 +638,68 @@ class WhisperGui(tk.Tk):
         if self.carry_initial_prompt.get():
             options["carry_initial_prompt"] = True
         return options
+
+    def _faster_model_options(self):
+        options = {
+            "device": self.device.get(),
+        }
+        self._set_option(options, "download_root", self.model_dir.get())
+        if self.threads.get().strip():
+            options["cpu_threads"] = self._optional_int_value(self.threads.get(), "Threads")
+        if self.compute_type.get() != "default":
+            options["compute_type"] = self.compute_type.get()
+        return options
+
+    def _faster_transcribe_options(self):
+        options = {
+            "task": self.task.get(),
+            "condition_on_previous_text": self.condition_on_previous_text.get(),
+            "word_timestamps": self.word_timestamps.get(),
+        }
+        if self.vad_filter.get():
+            options["vad_filter"] = True
+        self._set_option(options, "language", self._faster_language(self.language.get()))
+        self._set_option(options, "initial_prompt", self.initial_prompt.get())
+        self._set_option(options, "temperature", self._temperature_value())
+        self._set_option(options, "best_of", self._optional_int_value(self.best_of.get(), "Best of"))
+        self._set_option(options, "beam_size", self._optional_int_value(self.beam_size.get(), "Beam size"))
+        self._set_option(options, "patience", self._optional_float_value(self.patience.get(), "Patience"))
+        self._set_option(options, "length_penalty", self._optional_float_value(self.length_penalty.get(), "Length penalty"))
+        self._set_option(options, "suppress_tokens", self._faster_suppress_tokens(self.suppress_tokens.get()))
+        self._set_option(options, "clip_timestamps", self.clip_timestamps.get())
+        self._set_option(options, "hotwords", self.hotwords.get())
+        options["prepend_punctuations"] = self.prepend_punctuations.get()
+        options["append_punctuations"] = self.append_punctuations.get()
+        self._set_option(
+            options,
+            "compression_ratio_threshold",
+            self._optional_float_value(self.compression_ratio_threshold.get(), "Compression threshold"),
+        )
+        self._set_option(options, "log_prob_threshold", self._optional_float_value(self.logprob_threshold.get(), "Logprob threshold"))
+        self._set_option(options, "no_speech_threshold", self._optional_float_value(self.no_speech_threshold.get(), "No speech threshold"))
+        return options
+
+    def _faster_language(self, value):
+        value = value.strip()
+        language_map = {
+            "Korean": "ko",
+            "English": "en",
+            "Japanese": "ja",
+            "Chinese": "zh",
+            "Spanish": "es",
+            "French": "fr",
+            "German": "de",
+        }
+        return language_map.get(value, value)
+
+    def _faster_suppress_tokens(self, value):
+        value = value.strip()
+        if not value:
+            return None
+        try:
+            return [int(token.strip()) for token in value.split(",") if token.strip()]
+        except ValueError as exc:
+            raise ValueError("Suppress tokens must be comma-separated token numbers for faster-whisper.") from exc
 
     def _writer_options(self):
         return {
@@ -581,6 +777,19 @@ class WhisperGui(tk.Tk):
     def _set_busy(self, busy):
         self.convert_button.configure(state="disabled" if busy else "normal")
 
+    def _sync_engine_options(self, *_):
+        if not hasattr(self, "faster_widgets"):
+            return
+        enabled = self.engine.get() == "faster-whisper"
+        for child in self.faster_widgets:
+            try:
+                if child.winfo_class() == "TCombobox":
+                    child.configure(state="readonly" if enabled else "disabled")
+                else:
+                    child.configure(state="normal" if enabled else "disabled")
+            except tk.TclError:
+                pass
+
     def _sync_word_timestamps(self, *_):
         if self.highlight_words.get() and not self.word_timestamps.get():
             self.word_timestamps.set(True)
@@ -614,6 +823,12 @@ class WhisperGui(tk.Tk):
             self.append_log("Whisper package found")
         except ImportError:
             self.append_log("Whisper package not found. Run: pip install openai-whisper")
+        try:
+            import faster_whisper  # noqa: F401
+
+            self.append_log("faster-whisper package found")
+        except ImportError:
+            self.append_log("faster-whisper package not found. Run: pip install faster-whisper")
 
     def _set_option(self, options, key, value):
         if value is None:
@@ -630,6 +845,12 @@ class WhisperGui(tk.Tk):
             return int(value)
         except ValueError as exc:
             raise ValueError(f"{label} must be an integer.") from exc
+
+    def _positive_optional_int_value(self, value, label):
+        value = self._optional_int_value(value, label)
+        if value is not None and value <= 0:
+            raise ValueError(f"{label} must be greater than 0.")
+        return value
 
     def _optional_float_value(self, value, label):
         value = str(value).strip()
