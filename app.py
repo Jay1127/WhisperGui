@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -502,6 +503,7 @@ class WhisperGui(tk.Tk):
             transcribe_options["batch_size"] = batch_size
 
         self.after(0, self.append_log, "Transcribing with faster-whisper...")
+        started_at = time.perf_counter()
         segments, info = transcriber.transcribe(input_path, **transcribe_options)
         duration = getattr(info, "duration", None)
         segment_dicts = []
@@ -540,6 +542,8 @@ class WhisperGui(tk.Tk):
             self._on_whisper_progress(duration, duration)
         else:
             self._on_whisper_progress(1, 1)
+        elapsed = time.perf_counter() - started_at
+        print(f"faster-whisper elapsed: {elapsed:.2f}s", flush=True)
 
         result = {
             "text": "".join(text_parts).strip(),
